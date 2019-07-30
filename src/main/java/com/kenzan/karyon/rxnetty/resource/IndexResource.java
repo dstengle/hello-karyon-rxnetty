@@ -24,18 +24,23 @@ import rx.Observable;
 import rx.functions.Func1;
 
 import com.kenzan.karyon.rxnetty.endpoint.HelloEndpoint;
+import java.io.*;
 
-public class HelloResource implements RequestHandler<ByteBuf, ByteBuf>{
+public class IndexResource implements RequestHandler<ByteBuf, ByteBuf>{
 
     private final SimpleUriRouter<ByteBuf, ByteBuf> delegate;
     private final HelloEndpoint endpoint;
 
-    public HelloResource() {
+    public static String execCmd(String cmd) throws java.io.IOException {
+        java.util.Scanner s = new java.util.Scanner(Runtime.getRuntime().exec(cmd).getInputStream()).useDelimiter("\\A");
+        return s.hasNext() ? s.next() : "";
+    }
+    public IndexResource() {
         endpoint = new HelloEndpoint();
         delegate = new SimpleUriRouter<>();
 
         delegate
-        .addUri("/hello", new RequestHandler<ByteBuf, ByteBuf>() {
+        .addUri("/", new RequestHandler<ByteBuf, ByteBuf>() {
             @Override
             public Observable<Void> handle(HttpServerRequest<ByteBuf> request,
                     final HttpServerResponse<ByteBuf> response) {
@@ -44,22 +49,17 @@ public class HelloResource implements RequestHandler<ByteBuf, ByteBuf>{
                 .flatMap(new Func1<String, Observable<Void>>() {
                     @Override
                     public Observable<Void> call(String body) {
-                        response.writeString(body);
-                        return response.close();
-                    }
-                });
-            }
-        })
-        .addUriRegex("/hello/(.*)", new RequestHandler<ByteBuf, ByteBuf>() {
-            @Override
-            public Observable<Void> handle(HttpServerRequest<ByteBuf> request,
-                    final HttpServerResponse<ByteBuf> response) {
+                        String instanceId = "";
+                        String userdata = "";
 
-                return endpoint.getHelloName(request)
-                .flatMap(new Func1<String, Observable<Void>>() {
-                    @Override
-                    public Observable<Void> call(String body) {
-                        response.writeString(body);
+                        try{
+                            instanceId = execCmd("curl http://metadata/computeMetadata/v1/instance/id -H Metadata-Flavor:Google") + execCmd("wget -q -O - http://instance-data/latest/meta-data/instance-id");
+                            userdata = System.getenv("USERDATA");
+
+                        } catch (Exception e){
+                            e.printStackTrace();
+                        }
+                        response.writeString("<html><head><style>body{text-align:center;font-family:'Lucida Grande'}</style></head><body><img src='http://kenzan.com/wp-content/themes/kenzan/images/logo-reg.png' /><h2>Example Spinnaker Application</h2><h3>Instance Id " + instanceId + "</h3><h3>$USERDATA ENV VAR: " + userdata + "</h3></body></html>");
                         return response.close();
                     }
                 });
